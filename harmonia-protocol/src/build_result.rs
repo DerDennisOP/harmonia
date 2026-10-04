@@ -18,6 +18,8 @@ use harmonia_store_derivation::realisation::UnkeyedRealisation;
 
 // Wire protocol serialization - maintains compatibility with the flat status enum format
 
+type ResourceUsage = (Option<u64>, Option<u64>, Option<u64>, Option<u64>);
+
 impl NixDeserializeTrait for Microseconds {
     async fn try_deserialize<R>(reader: &mut R) -> Result<Option<Self>, R::Error>
     where
@@ -55,6 +57,12 @@ impl NixDeserializeTrait for BuildResult {
         let stop_time: i64 = reader.read_value().await?;
         let cpu_user: Option<Microseconds> = reader.read_value().await?;
         let cpu_system: Option<Microseconds> = reader.read_value().await?;
+        let (memory_peak, io_read_bytes, io_write_bytes, oom_kills): ResourceUsage =
+            if reader.has_feature(crate::version::FEATURE_BUILD_RESOURCE_USAGE) {
+                reader.read_value().await?
+            } else {
+                Default::default()
+            };
         let built_outputs: BTreeMap<OutputName, UnkeyedRealisation> =
             if reader.has_feature(crate::version::FEATURE_REALISATION_WITH_PATH) {
                 reader.read_value().await?
@@ -115,6 +123,10 @@ impl NixDeserializeTrait for BuildResult {
             stop_time,
             cpu_user,
             cpu_system,
+            memory_peak,
+            io_read_bytes,
+            io_write_bytes,
+            oom_kills,
         }))
     }
 }
@@ -150,6 +162,15 @@ impl NixSerializeTrait for BuildResult {
         writer.write_value(&self.stop_time).await?;
         writer.write_value(&self.cpu_user).await?;
         writer.write_value(&self.cpu_system).await?;
+        if writer.has_feature(crate::version::FEATURE_BUILD_RESOURCE_USAGE) {
+            let resource_usage: ResourceUsage = (
+                self.memory_peak,
+                self.io_read_bytes,
+                self.io_write_bytes,
+                self.oom_kills,
+            );
+            writer.write_value(&resource_usage).await?;
+        }
         if writer.has_feature(crate::version::FEATURE_REALISATION_WITH_PATH) {
             writer.write_value(built_outputs).await?;
         } else {
@@ -200,7 +221,47 @@ mod tests {
             stop_time: 50,
             cpu_user: Some(500.into()),
             cpu_system: Some(604.into()),
+            memory_peak: Some(4096),
+            io_read_bytes: None,
+            io_write_bytes: Some(8192),
+            oom_kills: Some(0),
         }
+    }
+
+    fn sample_failure() -> BuildResult {
+        BuildResult {
+            inner: BuildResultInner::Failure(BuildResultFailure {
+                status: FailureStatus::TimedOut,
+                error_msg: b"build timed out".to_vec(),
+                is_non_deterministic: false,
+            }),
+            ..sample_success()
+        }
+    }
+
+    fn without_resource_usage(v: &BuildResult) -> BuildResult {
+        BuildResult {
+            memory_peak: None,
+            io_read_bytes: None,
+            io_write_bytes: None,
+            oom_kills: None,
+            ..v.clone()
+        }
+    }
+
+    fn features(names: &[&str]) -> crate::version::FeatureSet {
+        names.iter().map(|name| name.to_string()).collect()
+    }
+
+    fn without_resource_usage_feature() -> crate::version::FeatureSet {
+        features(&[crate::version::FEATURE_REALISATION_WITH_PATH])
+    }
+
+    fn with_resource_usage_feature() -> crate::version::FeatureSet {
+        features(&[
+            crate::version::FEATURE_REALISATION_WITH_PATH,
+            crate::version::FEATURE_BUILD_RESOURCE_USAGE,
+        ])
     }
 
     async fn write(features: crate::version::FeatureSet, v: &BuildResult) -> Vec<u8> {
@@ -239,5 +300,54 @@ mod tests {
         );
         assert_eq!(back.times_built, v.times_built);
         assert_eq!(back.start_time, v.start_time);
+    }
+
+    #[rstest::rstest]
+    #[case::success(sample_success())]
+    #[case::failure(sample_failure())]
+    #[tokio::test]
+    async fn resource_usage_is_not_on_the_wire_without_feature(#[case] v: BuildResult) {
+        let buf = write(without_resource_usage_feature(), &v).await;
+        assert_eq!(
+            buf,
+            write(
+                without_resource_usage_feature(),
+                &without_resource_usage(&v)
+            )
+            .await
+        );
+        assert_eq!(
+            read(without_resource_usage_feature(), buf).await,
+            without_resource_usage(&v)
+        );
+    }
+
+    #[rstest::rstest]
+    #[case::success(sample_success())]
+    #[case::failure(sample_failure())]
+    #[tokio::test]
+    async fn resource_usage_follows_cpu_system_as_tagged_words_with_feature(
+        #[case] v: BuildResult,
+    ) {
+        let buf = write(with_resource_usage_feature(), &v).await;
+
+        let mut r = NixReader::builder()
+            .set_features(with_resource_usage_feature())
+            .build_buffered(Cursor::new(buf.clone()));
+        r.read_value::<u16>().await.unwrap();
+        r.read_value::<Bytes>().await.unwrap();
+        r.read_value::<u32>().await.unwrap();
+        r.read_value::<bool>().await.unwrap();
+        r.read_value::<i64>().await.unwrap();
+        r.read_value::<i64>().await.unwrap();
+        r.read_value::<Option<Microseconds>>().await.unwrap();
+        r.read_value::<Option<Microseconds>>().await.unwrap();
+        let mut words = Vec::new();
+        for _ in 0..7 {
+            words.push(r.read_value::<u64>().await.unwrap());
+        }
+        assert_eq!(words, [1, 4096, 0, 1, 8192, 1, 0]);
+
+        assert_eq!(read(with_resource_usage_feature(), buf).await, v);
     }
 }

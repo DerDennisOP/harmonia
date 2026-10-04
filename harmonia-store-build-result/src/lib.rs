@@ -153,6 +153,18 @@ pub struct BuildResult {
     /// System CPU time the build took.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cpu_system: Option<Microseconds>,
+    /// Peak memory usage of the build in bytes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memory_peak: Option<u64>,
+    /// Bytes the build read from block devices.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub io_read_bytes: Option<u64>,
+    /// Bytes the build wrote to block devices.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub io_write_bytes: Option<u64>,
+    /// How many processes of the build the kernel killed for running out of memory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oom_kills: Option<u64>,
 }
 
 impl BuildResult {
@@ -344,24 +356,36 @@ mod arbitrary {
                     })
                 },
             );
-            (
-                prop_oneof![success, failure],
+            let timing = (
                 any::<u32>(),
                 any::<i64>(),
                 any::<i64>(),
                 any::<Option<Microseconds>>(),
                 any::<Option<Microseconds>>(),
-            )
+            );
+            let resource_usage = (
+                any::<Option<u64>>(),
+                any::<Option<u64>>(),
+                any::<Option<u64>>(),
+                any::<Option<u64>>(),
+            );
+            (prop_oneof![success, failure], timing, resource_usage)
                 .prop_map(
-                    |(inner, times_built, start_time, stop_time, cpu_user, cpu_system)| {
-                        BuildResult {
-                            inner,
-                            times_built,
-                            start_time,
-                            stop_time,
-                            cpu_user,
-                            cpu_system,
-                        }
+                    |(
+                        inner,
+                        (times_built, start_time, stop_time, cpu_user, cpu_system),
+                        (memory_peak, io_read_bytes, io_write_bytes, oom_kills),
+                    )| BuildResult {
+                        inner,
+                        times_built,
+                        start_time,
+                        stop_time,
+                        cpu_user,
+                        cpu_system,
+                        memory_peak,
+                        io_read_bytes,
+                        io_write_bytes,
+                        oom_kills,
                     },
                 )
                 .boxed()
