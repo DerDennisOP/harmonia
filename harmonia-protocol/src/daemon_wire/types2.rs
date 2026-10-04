@@ -487,36 +487,41 @@ macro_rules! optional_from_str {
 optional_from_str!(String);
 optional_from_str!(ContentAddress);
 
-impl NixDeserializeTrait for Option<Microseconds> {
-    async fn try_deserialize<R>(reader: &mut R) -> Result<Option<Self>, R::Error>
-    where
-        R: ?Sized + NixRead + Send,
-    {
-        if let Some(tag) = reader.try_read_value::<u8>().await? {
-            match tag {
-                0 => Ok(Some(None)),
-                1 => Ok(Some(Some(reader.read_value::<Microseconds>().await?))),
-                _ => Err(R::Error::invalid_data("invalid optional tag from remote")),
+macro_rules! optional_tagged {
+    ($sub:ty) => {
+        impl NixDeserializeTrait for Option<$sub> {
+            async fn try_deserialize<R>(reader: &mut R) -> Result<Option<Self>, R::Error>
+            where
+                R: ?Sized + NixRead + Send,
+            {
+                if let Some(tag) = reader.try_read_value::<u8>().await? {
+                    match tag {
+                        0 => Ok(Some(None)),
+                        1 => Ok(Some(Some(reader.read_value::<$sub>().await?))),
+                        _ => Err(R::Error::invalid_data("invalid optional tag from remote")),
+                    }
+                } else {
+                    Ok(None)
+                }
             }
-        } else {
-            Ok(None)
         }
-    }
-}
-
-impl NixSerializeTrait for Option<Microseconds> {
-    async fn serialize<W>(&self, writer: &mut W) -> Result<(), W::Error>
-    where
-        W: NixWrite,
-    {
-        if let Some(value) = self.as_ref() {
-            writer.write_number(1).await?;
-            writer.write_value(value).await
-        } else {
-            writer.write_number(0).await
+        impl NixSerializeTrait for Option<$sub> {
+            async fn serialize<W>(&self, writer: &mut W) -> Result<(), W::Error>
+            where
+                W: NixWrite,
+            {
+                if let Some(value) = self.as_ref() {
+                    writer.write_number(1).await?;
+                    writer.write_value(value).await
+                } else {
+                    writer.write_number(0).await
+                }
+            }
         }
-    }
+    };
 }
+optional_tagged!(Microseconds);
+optional_tagged!(u64);
 
 /// Nix wire protocol impl for Option<NonZero<i64>> - serializes as plain i64 (0 = None)
 impl NixDeserializeTrait for Option<NonZero<i64>> {

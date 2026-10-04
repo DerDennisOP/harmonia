@@ -40,6 +40,10 @@ test_upstream_json!(
             stop_time: 50,
             cpu_user: Some(Microseconds(500000000)),
             cpu_system: Some(Microseconds(604000000)),
+            memory_peak: None,
+            io_read_bytes: None,
+            io_write_bytes: None,
+            oom_kills: None,
         }
     }
 );
@@ -59,6 +63,10 @@ test_upstream_json!(
             stop_time: 50,
             cpu_user: None,
             cpu_system: None,
+            memory_peak: None,
+            io_read_bytes: None,
+            io_write_bytes: None,
+            oom_kills: None,
         }
     }
 );
@@ -78,6 +86,10 @@ test_upstream_json!(
             stop_time: 0,
             cpu_user: None,
             cpu_system: None,
+            memory_peak: None,
+            io_read_bytes: None,
+            io_write_bytes: None,
+            oom_kills: None,
         }
     }
 );

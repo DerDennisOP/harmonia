@@ -47,9 +47,17 @@ pub const FEATURE_SUBMIT_OUTPUT: &str = "submit-output";
 /// Upstream daemons only advertise this on recursive connections.
 pub const FEATURE_DISABLE_SET_OPTIONS: &str = "disable-set-options";
 
+/// `BuildResult` carries the build cgroup's peak memory, disk I/O bytes and
+/// out-of-memory kill count after `cpuSystem`.
+pub const FEATURE_BUILD_RESOURCE_USAGE: &str = "build-resource-usage";
+
 /// Features harmonia advertises during handshake.
 pub fn supported_features() -> FeatureSet {
-    [FEATURE_REALISATION_WITH_PATH.to_owned()].into()
+    [
+        FEATURE_REALISATION_WITH_PATH.to_owned(),
+        FEATURE_BUILD_RESOURCE_USAGE.to_owned(),
+    ]
+    .into()
 }
 
 /// The protocol version of the pinned `builder-rpc-v0` derivation feature.
