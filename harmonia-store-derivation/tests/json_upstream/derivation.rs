@@ -123,8 +123,8 @@ test_upstream_json!(
             );
             map
         },
-        structured_attrs: Some(StructuredAttrs {
-            attrs: serde_json::from_value(serde_json::json!({
+        structured_attrs: Some(StructuredAttrs::from(
+            serde_json::from_value::<serde_json::Map<String, serde_json::Value>>(serde_json::json!({
                 "__darwinAllowLocalNetworking": true,
                 "__impureHostDeps": ["/usr/bin/ditto"],
                 "__noChroot": true,
@@ -158,7 +158,7 @@ test_upstream_json!(
                 "requiredSystemFeatures": ["rainbow", "uid-range"],
                 "system": "my-system"
             })).unwrap(),
-        }),
+        )),
     }
 );
 
@@ -198,17 +198,19 @@ test_upstream_json!(
             );
             map
         },
-        structured_attrs: Some(StructuredAttrs {
-            attrs: serde_json::from_value(serde_json::json!({
-                "builder": "/bin/bash",
-                "name": "advanced-attributes-structured-attrs-defaults",
-                "outputHashAlgo": "sha256",
-                "outputHashMode": "recursive",
-                "outputs": ["out", "dev"],
-                "system": "my-system"
-            }))
+        structured_attrs: Some(StructuredAttrs::from(
+            serde_json::from_value::<serde_json::Map<String, serde_json::Value>>(
+                serde_json::json!({
+                    "builder": "/bin/bash",
+                    "name": "advanced-attributes-structured-attrs-defaults",
+                    "outputHashAlgo": "sha256",
+                    "outputHashMode": "recursive",
+                    "outputs": ["out", "dev"],
+                    "system": "my-system"
+                })
+            )
             .unwrap(),
-        }),
+        )),
     }
 );
 
@@ -273,8 +275,8 @@ test_upstream_json!(
             map.insert(bytes::Bytes::from("dev"), bytes::Bytes::from("/nix/store/ijq6mwpa9jbnpnl33qldfqihrr38kprx-advanced-attributes-structured-attrs-dev"));
             map
         },
-        structured_attrs: Some(StructuredAttrs {
-            attrs: serde_json::from_value(serde_json::json!({
+        structured_attrs: Some(StructuredAttrs::from(
+            serde_json::from_value::<serde_json::Map<String, serde_json::Value>>(serde_json::json!({
                 "__darwinAllowLocalNetworking": true,
                 "__impureHostDeps": ["/usr/bin/ditto"],
                 "__noChroot": true,
@@ -306,7 +308,7 @@ test_upstream_json!(
                 "requiredSystemFeatures": ["rainbow", "uid-range"],
                 "system": "my-system"
             })).unwrap(),
-        }),
+        )),
     }
 );
 
@@ -342,15 +344,17 @@ test_upstream_json!(
             map.insert(bytes::Bytes::from("dev"), bytes::Bytes::from("/nix/store/8bazivnbipbyi569623skw5zm91z6kc2-advanced-attributes-structured-attrs-defaults-dev"));
             map
         },
-        structured_attrs: Some(StructuredAttrs {
-            attrs: serde_json::from_value(serde_json::json!({
-                "builder": "/bin/bash",
-                "name": "advanced-attributes-structured-attrs-defaults",
-                "outputs": ["out", "dev"],
-                "system": "my-system"
-            }))
+        structured_attrs: Some(StructuredAttrs::from(
+            serde_json::from_value::<serde_json::Map<String, serde_json::Value>>(
+                serde_json::json!({
+                    "builder": "/bin/bash",
+                    "name": "advanced-attributes-structured-attrs-defaults",
+                    "outputs": ["out", "dev"],
+                    "system": "my-system"
+                })
+            )
             .unwrap(),
-        }),
+        )),
     }
 );
 
@@ -446,15 +450,17 @@ test_upstream_json!(
                 );
                 map
             },
-            structured_attrs: Some(StructuredAttrs {
-                attrs: serde_json::from_value(serde_json::json!({
-                    "dep1out": ph1_out,
-                    "nested": {
-                        "dep2": format!("before {ph2_out} after")
-                    }
-                }))
+            structured_attrs: Some(StructuredAttrs::from(
+                serde_json::from_value::<serde_json::Map<String, serde_json::Value>>(
+                    serde_json::json!({
+                        "dep1out": ph1_out,
+                        "nested": {
+                            "dep2": format!("before {ph2_out} after")
+                        }
+                    }),
+                )
                 .unwrap(),
-            }),
+            )),
         }
     }
 );
@@ -553,14 +559,16 @@ test_upstream_json!(
             );
             map
         },
-        structured_attrs: Some(StructuredAttrs {
-            attrs: serde_json::from_value(serde_json::json!({
-                "dep1out": "/nix/store/f1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-dep1-out",
-                "nested": {
-                    "dep2": "before /nix/store/i1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-dep2-out after"
-                }
-            }))
+        structured_attrs: Some(StructuredAttrs::from(
+            serde_json::from_value::<serde_json::Map<String, serde_json::Value>>(
+                serde_json::json!({
+                    "dep1out": "/nix/store/f1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-dep1-out",
+                    "nested": {
+                        "dep2": "before /nix/store/i1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-dep2-out after"
+                    }
+                })
+            )
             .unwrap(),
-        }),
+        )),
     }
 );

@@ -54,12 +54,11 @@ impl NixSerialize for (StorePath, BasicDerivation) {
         match &drv.structured_attrs {
             None => writer.write_value(&drv.env).await?,
             Some(sa) => {
-                use crate::ser::Error as _;
                 let mut env = drv.env.clone();
-                let json = serde_json::to_string(&sa.attrs).map_err(|e| {
-                    W::Error::custom(std::format_args!("failed to encode structured attrs: {e}"))
-                })?;
-                env.insert(Bytes::from_static(b"__json"), Bytes::from(json));
+                env.insert(
+                    Bytes::from_static(b"__json"),
+                    Bytes::copy_from_slice(sa.structured_attributes_json_text().as_bytes()),
+                );
                 writer.write_value(&env).await?;
             }
         }
@@ -100,10 +99,8 @@ impl NixDeserialize for (StorePath, BasicDerivation) {
             // Mirror `StructuredAttrs::tryExtract`: pull `__json` out
             // of env into the dedicated field so round-tripping is lossless.
             let structured_attrs = env.remove(b"__json".as_slice()).and_then(|json_bytes| {
-                let json_str = std::str::from_utf8(&json_bytes).ok()?;
-                let attrs: serde_json::Map<String, serde_json::Value> =
-                    serde_json::from_str(json_str).ok()?;
-                Some(StructuredAttrs { attrs })
+                let json_str = String::from_utf8(json_bytes.to_vec()).ok()?;
+                StructuredAttrs::from_json_text_keeping_original_text(json_str).ok()
             });
 
             Ok(Some((

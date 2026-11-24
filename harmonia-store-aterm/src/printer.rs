@@ -206,7 +206,7 @@ fn write_env(
     let json_key = Bytes::from("__json");
     let json_value = structured_attrs
         .as_ref()
-        .map(|sa| Bytes::from(serde_json::to_string(&sa.attrs).unwrap()));
+        .map(|sa| Bytes::copy_from_slice(sa.structured_attributes_json_text().as_bytes()));
 
     out.push(b'[');
     let mut first = true;

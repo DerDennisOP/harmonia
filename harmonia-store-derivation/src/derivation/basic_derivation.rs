@@ -14,14 +14,59 @@ use super::{DerivationInputs, DerivationOutput, DerivationOutputs};
 /// When present, derivation attributes are passed to the builder as a JSON object
 /// via the `__json` environment variable, rather than individual environment variables.
 /// This allows passing complex data structures (arrays, nested objects, etc.) to builders.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(transparent)]
+///
+/// Note: The `env` map must not contain the key `__json` when structured attrs are used,
+/// as that key is reserved for encoding the structured attributes themselves.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StructuredAttrs {
-    /// The structured attributes as a JSON object.
-    ///
-    /// Note: The `env` map must not contain the key `__json` when structured attrs are used,
-    /// as that key is reserved for encoding the structured attributes themselves.
-    pub attrs: serde_json::Map<String, serde_json::Value>,
+    structured_attributes: serde_json::Map<String, serde_json::Value>,
+    /// The exact JSON text of the `__json` environment variable. Printing writes this text
+    /// unchanged, since Nix hashes the derivation file as written. Parsing and serializing
+    /// the JSON a second time changes the appearance of floating-point numbers, so `1e-06`
+    /// can become `1e-6`. The computed output paths then fail to match.
+    json_env_entry_text: String,
+}
+
+impl StructuredAttrs {
+    pub fn from_json_text_keeping_original_text(
+        json_env_entry_text: String,
+    ) -> Result<Self, serde_json::Error> {
+        Ok(Self {
+            structured_attributes: serde_json::from_str(&json_env_entry_text)?,
+            json_env_entry_text,
+        })
+    }
+
+    pub fn structured_attributes(&self) -> &serde_json::Map<String, serde_json::Value> {
+        &self.structured_attributes
+    }
+
+    pub fn structured_attributes_json_text(&self) -> &str {
+        &self.json_env_entry_text
+    }
+}
+
+impl From<serde_json::Map<String, serde_json::Value>> for StructuredAttrs {
+    fn from(structured_attributes: serde_json::Map<String, serde_json::Value>) -> Self {
+        let json_env_entry_text =
+            serde_json::Value::Object(structured_attributes.clone()).to_string();
+        Self {
+            structured_attributes,
+            json_env_entry_text,
+        }
+    }
+}
+
+impl Serialize for StructuredAttrs {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.structured_attributes.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for StructuredAttrs {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        serde_json::Map::deserialize(deserializer).map(Self::from)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -114,7 +159,7 @@ pub mod arbitrary {
             for (k, v) in map {
                 attrs.insert(k, v);
             }
-            StructuredAttrs { attrs }
+            StructuredAttrs::from(attrs)
         })
     }
 }
@@ -357,10 +402,14 @@ impl<Inputs> DerivationT<Inputs> {
         }
 
         if let Some(ref mut sa) = self.structured_attrs {
-            let json_bytes = bytes::Bytes::from(serde_json::to_string(&sa.attrs).unwrap());
+            let json_bytes =
+                bytes::Bytes::copy_from_slice(sa.structured_attributes_json_text().as_bytes());
             let rewritten = rewrite(&json_bytes, rewrites);
-            if let Ok(attrs) = serde_json::from_slice(&rewritten) {
-                sa.attrs = attrs;
+            if let Some(rewritten) = String::from_utf8(rewritten.to_vec())
+                .ok()
+                .and_then(|text| StructuredAttrs::from_json_text_keeping_original_text(text).ok())
+            {
+                *sa = rewritten;
             }
         }
     }

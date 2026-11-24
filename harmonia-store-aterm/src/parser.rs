@@ -90,10 +90,8 @@ impl<'a> Parser<'a> {
         let structured_attrs = env
             .remove(&Bytes::from_static(b"__json"))
             .and_then(|json_bytes| {
-                let json_str = std::str::from_utf8(&json_bytes).ok()?;
-                let attrs: serde_json::Map<String, serde_json::Value> =
-                    serde_json::from_str(json_str).ok()?;
-                Some(StructuredAttrs { attrs })
+                let json_str = String::from_utf8(json_bytes.to_vec()).ok()?;
+                StructuredAttrs::from_json_text_keeping_original_text(json_str).ok()
             });
 
         Ok(Derivation {
